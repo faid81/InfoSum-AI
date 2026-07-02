@@ -1,0 +1,6 @@
+{
+  "name": "Chatbot Pencarian dan Ringkasan Online",
+  "description": "Asisten chatbot cerdas untuk mencari informasi terkini secara online dengan integrasi API pencarian dan fitur ringkasan teks otomatis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
