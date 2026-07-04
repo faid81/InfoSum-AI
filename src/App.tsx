@@ -25,18 +25,29 @@ export default function App() {
   const [customModel, setCustomModel] = useState<string>("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [enableVector, setEnableVector] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const activeModel = provider === "openrouter" 
     ? (model === "custom" ? customModel || "openrouter/free" : model) 
     : "gemini-3.5-flash";
 
   // Load list of conversation threads
-  const loadSessions = async () => {
+  const loadSessions = async (autoSelectLatest = false) => {
     try {
       const response = await fetch("/api/db/sessions");
       const data = await response.json();
       if (data.success && data.sessions) {
         setSessions(data.sessions);
+        
+        if (autoSelectLatest && data.sessions.length > 0) {
+          const sorted = [...data.sessions].sort((a: any, b: any) => {
+            const dateA = new Date(a.updated_at || a.created_at).getTime();
+            const dateB = new Date(b.updated_at || b.created_at).getTime();
+            return dateB - dateA;
+          });
+          setSessionId(sorted[0].session_id);
+        }
       }
     } catch (err) {
       console.error("Gagal memuat daftar sesi percakapan:", err);
@@ -57,7 +68,12 @@ export default function App() {
       if (sessionId === id) {
         const remaining = sessions.filter((s) => s.session_id !== id);
         if (remaining.length > 0) {
-          setSessionId(remaining[0].session_id);
+          const sortedRemaining = [...remaining].sort((a, b) => {
+            const dateA = new Date(a.updated_at || a.created_at).getTime();
+            const dateB = new Date(b.updated_at || b.created_at).getTime();
+            return dateB - dateA;
+          });
+          setSessionId(sortedRemaining[0].session_id);
         } else {
           handleNewThread();
         }
@@ -68,6 +84,11 @@ export default function App() {
       console.error("Gagal menghapus sesi percakapan:", err);
     }
   };
+
+  // Initial startup load to select the latest thread
+  useEffect(() => {
+    loadSessions(true);
+  }, []);
 
   // Load conversation history and threads whenever sessionId changes
   useEffect(() => {
@@ -438,22 +459,19 @@ export default function App() {
       )}
 
       {/* Sidebar Kiri Penuh */}
-      <aside className={`transition-all duration-300 ease-in-out shrink-0 relative z-10 bg-[#1e1f20] border-[#2d2f31]/40 ${
+        <aside className={`transition-all duration-300 ease-in-out shrink-0 relative z-10 bg-[#1e1f20] border-[#2d2f31]/40 ${
         sidebarOpen 
-          ? "w-full md:w-80 border-b md:border-b-0 md:border-r p-6 flex flex-col gap-6 justify-between opacity-100" 
+          ? "w-full md:w-[280px] border-b md:border-b-0 md:border-r pt-5 pb-3 px-0 flex flex-col gap-4 justify-between opacity-100" 
           : "w-0 h-0 p-0 overflow-hidden md:w-0 border-r-0 border-b-0 opacity-0 pointer-events-none"
       }`}>
-        <div className="space-y-6 flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-4">
           {/* Logo / Branding */}
-          <div className="flex items-center justify-between gap-2 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <svg className="w-6 h-6 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <div className="flex items-center justify-between gap-2 shrink-0 px-4.5">
+            <div className="flex items-center gap-2">
+              <svg className="w-5.5 h-5.5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 2C12 2 13 8 18 12C13 12 12 18 12 22C12 22 11 16 6 12C11 12 12 2 12 2Z" fill="url(#geminiStarGradient)" />
               </svg>
-              <div>
-                <h1 className="text-lg font-medium text-white tracking-tight leading-none">Gemini</h1>
-                <span className="text-[10px] text-slate-400 font-medium">Asisten Cerdas Terpadu</span>
-              </div>
+              <h1 className="text-[15px] font-semibold text-[#e3e3e3] tracking-normal leading-none">Gemini</h1>
             </div>
             {/* Collapse button directly inside the full sidebar */}
             <button
@@ -461,70 +479,56 @@ export default function App() {
               className="w-8 h-8 rounded-lg bg-transparent hover:bg-[#2d2f31] text-[#c4c7c5] hover:text-white transition-all cursor-pointer flex items-center justify-center"
               title="Tutup Menu Samping"
             >
-              <PanelLeft className="w-4.5 h-4.5" />
+              <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
             </button>
           </div>
+          {/* Action Buttons: New Chat & Search Input */}
+          <div className="flex flex-col gap-2.5 shrink-0 px-3">
+            {/* Button: Percakapan baru */}
+            <button
+              onClick={handleNewThread}
+              className="w-full py-2.5 px-4.5 rounded-full text-xs font-medium text-slate-200 bg-[#131314]/30 hover:bg-[#2d2f31]/50 border border-[#2d2f31]/35 transition-all duration-200 flex items-center gap-3 cursor-pointer text-left shadow-xs"
+            >
+              <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
+              </svg>
+              <span>Percakapan baru</span>
+            </button>
 
-          {/* Menu Navigasi Samping */}
-          <div className="space-y-2 shrink-0">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block px-2 mb-2">
-              Notebook & Navigasi
-            </span>
-            <div className="flex flex-col gap-1">
-              <button
-                onClick={() => setActiveTab("chat")}
-                className={`w-full py-3 px-4 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-3 cursor-pointer text-left ${
-                  activeTab === "chat"
-                    ? "bg-[#2d2f31] text-white"
-                    : "text-[#c4c7c5] hover:text-white hover:bg-[#2d2f31]"
-                }`}
-              >
-                <Search className="w-4.5 h-4.5 shrink-0 text-blue-400" />
-                <span>Obrolan Pencarian</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("summarize")}
-                className={`w-full py-3 px-4 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-3 cursor-pointer text-left ${
-                  activeTab === "summarize"
-                    ? "bg-[#2d2f31] text-white"
-                    : "text-[#c4c7c5] hover:text-white hover:bg-[#2d2f31]"
-                }`}
-              >
-                <AlignLeft className="w-4.5 h-4.5 shrink-0 text-emerald-400" />
-                <span>Ringkasan Teks & URL</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("database")}
-                className={`w-full py-3 px-4 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-3 cursor-pointer text-left ${
-                  activeTab === "database"
-                    ? "bg-[#2d2f31] text-white"
-                    : "text-[#c4c7c5] hover:text-white hover:bg-[#2d2f31]"
-                }`}
-              >
-                <Database className="w-4.5 h-4.5 shrink-0 text-purple-400" />
-                <span>Eksplorasi Basis Data & Memori</span>
-              </button>
+            {/* Live Search Thread Filter */}
+            <div className="relative w-full">
+              <Search className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Telusuri percakapan"
+                className="w-full bg-transparent hover:bg-[#2d2f31]/20 focus:bg-[#131314] text-xs text-slate-200 pl-11 pr-8 py-2.5 rounded-full border border-[#2d2f31]/30 focus:border-blue-500/50 focus:outline-none transition-all placeholder-slate-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors p-0.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
           {/* Thread List Section */}
-          <div className="flex-1 flex flex-col min-h-0 space-y-2 border-t border-[#2d2f31]/40 pt-4">
-            <div className="flex items-center justify-between px-2 shrink-0">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Terbaru (Thread)
+          <div className="flex-1 flex flex-col min-h-0 space-y-1.5 pt-1">
+            <div className="px-5 shrink-0 flex items-center justify-between">
+              <span className="text-xs font-medium text-[#c4c7c5]">
+                Terbaru
               </span>
-              <button
-                onClick={handleNewThread}
-                className="px-2 py-1 rounded bg-[#131314] hover:bg-[#2d2f31] border border-[#2d2f31]/50 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center gap-1.5 text-[10px] font-medium"
-                title="Mulai Sesi Baru"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Baru</span>
-              </button>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+
+            <div className="flex-1 overflow-y-auto px-2 space-y-1 custom-scrollbar">
               {(() => {
                 const sortedSessions = [...sessions].sort((a, b) => {
                   const dateA = new Date(a.updated_at || a.created_at).getTime();
@@ -532,24 +536,25 @@ export default function App() {
                   return dateB - dateA;
                 });
 
-                return sortedSessions.map((sess, idx) => {
-                  const isLatest = idx === 0;
+                const filteredSessions = sortedSessions.filter((s) =>
+                  s.title.toLowerCase().includes(searchQuery.toLowerCase())
+                );
+
+                return filteredSessions.map((sess, idx) => {
+                  const isLatest = idx === 0 && searchQuery === "";
                   const isActive = sessionId === sess.session_id;
 
                   return (
                     <div
                       key={sess.session_id}
-                      className={`group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-xs transition-all duration-200 cursor-pointer ${
+                      className={`group relative flex items-center justify-between rounded-full px-4.5 py-2.5 text-[12.5px] transition-all duration-200 cursor-pointer ${
                         isActive
-                          ? "bg-[#2d2f31] text-white font-medium shadow-sm border border-[#3c3d3f]/25"
+                          ? "bg-[#2d2f31] text-white font-medium"
                           : "text-[#c4c7c5] hover:text-white hover:bg-[#2d2f31]/40"
-                      } ${isLatest ? (isActive ? "border-l-2 border-blue-400 pl-2.5" : "border-l-2 border-blue-500/50 pl-2.5") : ""}`}
+                      }`}
                       onClick={() => setSessionId(sess.session_id)}
                     >
                       <div className="flex items-center gap-2.5 overflow-hidden w-full pr-7">
-                        <svg className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-blue-400" : "text-slate-500"}`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
                         <span className="truncate flex-1" title={sess.title}>
                           {sess.title}
                         </span>
@@ -569,7 +574,7 @@ export default function App() {
                           e.stopPropagation();
                           handleDeleteSession(sess.session_id);
                         }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-[#131314]/70 rounded-md text-slate-400 hover:text-red-400 transition-all cursor-pointer"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-[#131314]/70 rounded-full text-slate-400 hover:text-red-400 transition-all cursor-pointer z-10"
                         title="Hapus Thread"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -587,79 +592,18 @@ export default function App() {
           </div>
         </div>
 
-        {/* Status Koneksi & Kredensial di Bawah Sidebar */}
-        <div className="pt-4 border-t border-[#2d2f31]/60 space-y-4 overflow-y-auto max-h-[350px]">
-
-          {/* Pengaturan Provider & Model AI */}
-          <div className="bg-[#131314] rounded-2xl p-3 border border-[#2d2f31]/40 space-y-2">
-            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              <span className="flex items-center gap-1">
-                <Settings className="w-3 h-3 text-blue-400 animate-spin-slow" />
-                MODEL AI
-              </span>
-              <span className="text-[9px] text-[#80868b]">DEFAULT</span>
-            </div>
-
-            {/* Provider Selection */}
-            <div className="space-y-1">
-              <select
-                value={provider}
-                onChange={(e) => {
-                  const val = e.target.value as "openrouter" | "gemini";
-                  setProvider(val);
-                  if (val === "openrouter") {
-                    setModel("openrouter/free");
-                  } else {
-                    setModel("gemini-3.5-flash");
-                  }
-                }}
-                className="w-full bg-[#1e1f20] text-[11px] text-slate-200 rounded-lg p-2 border border-[#2d2f31]/80 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
-              >
-                <option value="openrouter">OpenRouter (Default)</option>
-                <option value="gemini">Google Gemini</option>
-              </select>
-            </div>
-
-            {/* Model Selection */}
-            <div className="space-y-1">
-              {provider === "openrouter" ? (
-                <div className="space-y-2">
-                  <select
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="w-full bg-[#1e1f20] text-[11px] text-slate-200 rounded-lg p-2 border border-[#2d2f31]/80 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
-                  >
-                    <option value="openrouter/free">openrouter/free (Auto Free)</option>
-                    <option value="google/gemini-2.5-flash:free">gemini-2.5-flash:free</option>
-                    <option value="meta-llama/llama-3-8b-instruct:free">llama-3-8b-instruct:free</option>
-                    <option value="mistralai/mistral-7b-instruct:free">mistral-7b-instruct:free</option>
-                    <option value="custom">Kustom Model ID...</option>
-                  </select>
-                  
-                  {model === "custom" && (
-                    <input
-                      type="text"
-                      placeholder="Contoh: meta-llama/llama-3-70b-instruct"
-                      value={customModel}
-                      onChange={(e) => setCustomModel(e.target.value)}
-                      className="w-full bg-[#1e1f20] text-[10px] text-slate-200 rounded-lg p-2 border border-[#2d2f31] focus:outline-none focus:border-blue-500 transition-colors"
-                    />
-                  )}
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  value="gemini-3.5-flash"
-                  disabled
-                  className="w-full bg-[#1e1f20]/50 text-[11px] text-slate-400 rounded-lg p-2 border border-[#2d2f31]/40 cursor-not-allowed font-medium"
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="text-[10px] text-slate-500 text-center md:text-left leading-relaxed">
-            <span>Powered by Gemini & Search Grounding</span>
-          </div>
+        {/* Pengaturan di bagian bawah */}
+        <div className="mt-auto pt-3 border-t border-[#2d2f31]/40 px-4 flex items-center shrink-0 bg-[#1e1f20]">
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="flex items-center gap-2.5 overflow-hidden w-full hover:bg-[#2d2f31]/40 px-2.5 py-2 rounded-xl text-[#c4c7c5] hover:text-white transition-all cursor-pointer text-left"
+            title="Pengaturan AI & Model"
+          >
+            <Settings className="w-4.5 h-4.5 text-slate-400 shrink-0" />
+            <span className="text-[12.5px] font-medium truncate">
+              Pengaturan
+            </span>
+          </button>
         </div>
       </aside>
 
@@ -667,34 +611,104 @@ export default function App() {
       <div className="flex-1 min-w-0 flex flex-col bg-[#131314] h-screen overflow-hidden">
         {/* Top Header info */}
         <header className="bg-[#131314] border-b border-[#2d2f31]/30 pl-4 pr-6 py-3.5 flex items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3.5">
             {/* Tombol Buka/Tutup Sidebar Utama */}
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="md:hidden w-10 h-10 rounded-xl bg-transparent border border-[#2d2f31]/40 text-[#c4c7c5] hover:text-white hover:bg-[#1e1f20] transition-all cursor-pointer flex items-center justify-center shadow-xs"
+                className="w-10 h-10 rounded-xl bg-transparent border border-[#2d2f31]/40 text-[#c4c7c5] hover:text-white hover:bg-[#1e1f20] transition-all cursor-pointer flex items-center justify-center shadow-xs shrink-0"
                 title="Buka Menu Samping"
               >
                 <PanelLeft className="w-5 h-5" />
               </button>
             )}
-            
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <span className="text-xs font-medium text-slate-300">
-                {activeTab === "chat" 
-                  ? "Obrolan Pencarian" 
-                  : activeTab === "summarize" 
-                    ? "Ringkasan Teks & URL" 
-                    : "Pusat Basis Data & Memori Vektor"}
-              </span>
-            </div>
+
+            {/* Dynamic Header Info based on activeTab */}
+            {activeTab === "chat" ? (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#1e1f20] flex items-center justify-center text-purple-400 shrink-0">
+                  <Search className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-xs font-semibold text-white tracking-wide uppercase">Pencarian Web & Obrolan</h2>
+                  {provider === "openrouter" ? (
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                      OpenRouter: {activeModel}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                      Google Search Grounding Aktif
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : activeTab === "summarize" ? (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#1e1f20] flex items-center justify-center text-emerald-400 shrink-0">
+                  <AlignLeft className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-xs font-semibold text-white tracking-wide uppercase">Ringkasan Teks & URL</h2>
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Model: {activeModel}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#1e1f20] flex items-center justify-center text-purple-400 shrink-0">
+                  <Database className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-xs font-semibold text-white tracking-wide uppercase">Eksplorasi Basis Data & Memori</h2>
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
+                    Pusat Memori Vektor
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="flex items-center gap-3">
+            {/* Segmented Tab Switcher */}
+            <div className="flex items-center bg-[#1e1f20] p-1 rounded-full border border-[#2d2f31]/50 shadow-inner shrink-0">
+              <button
+                onClick={() => setActiveTab("chat")}
+                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all duration-200 cursor-pointer ${
+                  activeTab === "chat"
+                    ? "bg-[#2d2f31] text-white shadow-xs"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Obrolan
+              </button>
+              <button
+                onClick={() => setActiveTab("summarize")}
+                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all duration-200 cursor-pointer ${
+                  activeTab === "summarize"
+                    ? "bg-[#2d2f31] text-white shadow-xs"
+                    : "text-[#c4c7c5] hover:text-white"
+                }`}
+              >
+                Ringkasan
+              </button>
+              <button
+                onClick={() => setActiveTab("database")}
+                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all duration-200 cursor-pointer ${
+                  activeTab === "database"
+                    ? "bg-[#2d2f31] text-white shadow-xs"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Database
+              </button>
+            </div>
 
-
-            <div className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-slate-400 bg-[#1e1f20] border border-[#2d2f31]/50 px-3 py-1.5 rounded-full">
+            <div className="hidden md:flex items-center gap-1.5 text-xs font-medium text-slate-400 bg-[#1e1f20] border border-[#2d2f31]/50 px-3 py-1.5 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>Bahasa Indonesia</span>
             </div>
@@ -762,6 +776,133 @@ export default function App() {
           </div>
         </footer>
       </div>
+
+      {/* AI Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+          {/* Backdrop Click Dismiss */}
+          <div 
+            className="absolute inset-0" 
+            onClick={() => setShowSettingsModal(false)}
+          />
+
+          <div className="relative bg-[#1e1f20] border border-[#2d2f31]/80 w-full max-w-md rounded-3xl p-6 shadow-2xl flex flex-col gap-5 z-10 text-slate-200">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-blue-400 animate-spin-slow" />
+                <h3 className="text-sm font-semibold tracking-wide uppercase">Pengaturan Model & Provider AI</h3>
+              </div>
+              <button 
+                onClick={() => setShowSettingsModal(false)}
+                className="p-1 rounded-full hover:bg-[#2d2f31] text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content info */}
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Konfigurasikan model bahasa kecerdasan buatan utama Anda untuk mendukung obrolan pencarian, ekstraksi data, dan pemrosesan ringkasan.
+            </p>
+
+            {/* Provider Select */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">AI Provider</label>
+              <select
+                value={provider}
+                onChange={(e) => {
+                  const val = e.target.value as "openrouter" | "gemini";
+                  setProvider(val);
+                  if (val === "openrouter") {
+                    setModel("openrouter/free");
+                  } else {
+                    setModel("gemini-3.5-flash");
+                  }
+                }}
+                className="w-full bg-[#131314] text-xs text-slate-200 rounded-xl p-3 border border-[#2d2f31]/80 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+              >
+                <option value="openrouter">OpenRouter (Default - Tanpa API Key)</option>
+                <option value="gemini">Google Gemini (Server-side API)</option>
+              </select>
+            </div>
+
+            {/* Model Select */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">AI Model</label>
+              {provider === "openrouter" ? (
+                <div className="space-y-2">
+                  <select
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    className="w-full bg-[#131314] text-xs text-slate-200 rounded-xl p-3 border border-[#2d2f31]/80 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                  >
+                    <option value="openrouter/free">openrouter/free (Sistem Rekomendasi Bebas)</option>
+                    <option value="google/gemini-2.5-flash:free">gemini-2.5-flash:free</option>
+                    <option value="meta-llama/llama-3-8b-instruct:free">llama-3-8b-instruct:free</option>
+                    <option value="mistralai/mistral-7b-instruct:free">mistral-7b-instruct:free</option>
+                    <option value="custom">Model Kustom ID...</option>
+                  </select>
+                  
+                  {model === "custom" && (
+                    <div className="space-y-1.5 pt-1">
+                      <label className="text-[10px] text-slate-400 font-medium">Model ID Kustom</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: meta-llama/llama-3-70b-instruct"
+                        value={customModel}
+                        onChange={(e) => setCustomModel(e.target.value)}
+                        className="w-full bg-[#131314] text-xs text-slate-200 rounded-xl p-3 border border-[#2d2f31] focus:outline-none focus:border-blue-500 transition-colors"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value="gemini-3.5-flash"
+                    disabled
+                    className="w-full bg-[#131314]/50 text-xs text-slate-400 rounded-xl p-3 border border-[#2d2f31]/40 cursor-not-allowed font-medium"
+                  />
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] text-emerald-500 bg-emerald-500/10 border border-emerald-500/25 px-1.5 py-0.5 rounded-sm uppercase font-extrabold tracking-wider">Aktif</span>
+                </div>
+              )}
+            </div>
+
+            {/* Vector DB Toggle */}
+            <div className="flex items-center justify-between p-3 bg-[#131314]/40 rounded-2xl border border-[#2d2f31]/30 mt-1">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-semibold text-slate-200">Pusat Memori Vektor</span>
+                <span className="text-[10px] text-slate-400">Hubungkan pencarian relevan ke database lokal</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={enableVector} 
+                  onChange={(e) => setEnableVector(e.target.checked)} 
+                  className="sr-only peer" 
+                />
+                <div className="w-9 h-5 bg-[#2d2f31] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 peer-checked:after:bg-white"></div>
+              </label>
+            </div>
+
+            {/* Info footer inside modal */}
+            <div className="flex items-center justify-between text-[10px] text-slate-500 pt-3 border-t border-[#2d2f31]/30 mt-2">
+              <span>Powered by Gemini & Search Grounding</span>
+              <span>Versi 1.1</span>
+            </div>
+
+            {/* Action buttons */}
+            <button
+              onClick={() => setShowSettingsModal(false)}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-xs text-white font-medium py-3 rounded-full transition-all cursor-pointer shadow-md shadow-blue-600/15"
+            >
+              Simpan & Selesai
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
