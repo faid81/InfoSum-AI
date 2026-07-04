@@ -16,7 +16,7 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Thread (Session) Management States
-  const [sessionId, setSessionId] = useState<string>("session_default");
+  const [sessionId, setSessionId] = useState<string>(() => "session_" + Math.random().toString(36).substring(2, 11));
   const [sessions, setSessions] = useState<Array<{ session_id: string; created_at: string; updated_at: string; title: string }>>([]);
 
   // AI Settings State (Default: OpenRouter, Model: openrouter/free)
@@ -85,60 +85,68 @@ export default function App() {
     }
   };
 
-  // Initial startup load to start a new thread every time the app opens
+  // Initial startup load to populate the previous threads in the sidebar
   useEffect(() => {
     loadSessions(false);
-    handleNewThread();
   }, []);
 
   // Load conversation history and threads whenever sessionId changes
   useEffect(() => {
+    let active = true;
     const loadHistory = async () => {
       try {
         const response = await fetch(`/api/db/history?session_id=${sessionId}`);
         const data = await response.json();
-        if (data.success && data.history) {
-          // Sort messages ascending by timestamp to display in correct chronological order
-          const sortedHistory = [...data.history].sort(
-            (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-          );
-          
-          const mapped: ChatMessage[] = sortedHistory.map((h: any) => {
-            let parsedSources: any[] = [];
-            let parsedModel: string | undefined = undefined;
-            if (h.sources) {
-              try {
-                const parsed = typeof h.sources === "string" ? JSON.parse(h.sources) : h.sources;
-                if (Array.isArray(parsed)) {
-                  parsedSources = parsed;
-                } else if (parsed && typeof parsed === "object") {
-                  parsedSources = parsed.sources || [];
-                  parsedModel = parsed.model;
+        if (active) {
+          if (data.success && data.history) {
+            // Sort messages ascending by timestamp to display in correct chronological order
+            const sortedHistory = [...data.history].sort(
+              (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+            );
+            
+            const mapped: ChatMessage[] = sortedHistory.map((h: any) => {
+              let parsedSources: any[] = [];
+              let parsedModel: string | undefined = undefined;
+              if (h.sources) {
+                try {
+                  const parsed = typeof h.sources === "string" ? JSON.parse(h.sources) : h.sources;
+                  if (Array.isArray(parsed)) {
+                    parsedSources = parsed;
+                  } else if (parsed && typeof parsed === "object") {
+                    parsedSources = parsed.sources || [];
+                    parsedModel = parsed.model;
+                  }
+                } catch (e) {
+                  console.error("Gagal mengurai sources:", e);
                 }
-              } catch (e) {
-                console.error("Gagal mengurai sources:", e);
               }
-            }
-            return {
-              id: h.id,
-              role: h.role,
-              content: h.content,
-              timestamp: new Date(h.timestamp),
-              sources: parsedSources,
-              model: parsedModel,
-            };
-          });
-          setMessages(mapped);
-        } else {
-          setMessages([]);
+              return {
+                id: h.id,
+                role: h.role,
+                content: h.content,
+                timestamp: new Date(h.timestamp),
+                sources: parsedSources,
+                model: parsedModel,
+              };
+            });
+            setMessages(mapped);
+          } else {
+            setMessages([]);
+          }
         }
       } catch (err) {
-        console.error("Gagal memuat riwayat percakapan dari basis data:", err);
+        if (active) {
+          console.error("Gagal memuat riwayat percakapan dari basis data:", err);
+        }
       }
     };
     
     loadHistory();
     loadSessions();
+
+    return () => {
+      active = false;
+    };
   }, [sessionId]);
 
   // Send Chat Message to Server API

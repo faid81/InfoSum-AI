@@ -6,6 +6,18 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* Global Font Type and Baseline Size Override */
+html, body {
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+input, textarea, button, select, option {
+  font-family: inherit;
+}
+
 /* Beautiful Markdown Typography Override for Chatbot Responses */
 .markdown-body {
   font-family: var(--font-sans);
