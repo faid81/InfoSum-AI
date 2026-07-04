@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Database, UserPlus, Trash2, Shield, RefreshCw, Cpu, Activity, Clock, Search, Plus, Save, Server, Trash, BrainCircuit, Sparkles, AlertCircle, Edit2
+  Database, UserPlus, Trash2, Shield, RefreshCw, Cpu, Activity, Clock, Search, Plus, Save, Server, Trash, BrainCircuit, Sparkles, AlertCircle, Edit2, Layers
 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -43,7 +43,15 @@ interface SearchResult {
   similarity: number;
 }
 
-export default function DatabaseDashboard() {
+interface DatabaseDashboardProps {
+  enableVector?: boolean;
+  setEnableVector?: (val: boolean) => void;
+}
+
+export default function DatabaseDashboard({
+  enableVector = true,
+  setEnableVector
+}: DatabaseDashboardProps) {
   // Navigation states inside dashboard
   const [dbTab, setDbTab] = useState<"status" | "users" | "conversations" | "vectors">("status");
   
@@ -791,22 +799,51 @@ CREATE TABLE IF NOT EXISTS system_status (
                           <span className="text-slate-500">{new Date(conv.timestamp).toLocaleString("id-ID")}</span>
                         </div>
                         <p className="text-white whitespace-pre-wrap mt-0.5 leading-relaxed">{conv.content}</p>
-                        {conv.sources && conv.sources !== "[]" && (
-                          <div className="mt-2 text-xs flex flex-wrap gap-2 items-center">
-                            <span className="text-slate-500 font-medium">Sumber:</span>
-                            {JSON.parse(conv.sources).map((src: any, idx: number) => (
-                              <a 
-                                key={idx}
-                                href={src.url} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className="text-blue-400 hover:underline font-mono text-[11px]"
-                              >
-                                {src.title || "Tautan"}
-                              </a>
-                            ))}
-                          </div>
-                        )}
+                        {(() => {
+                          if (!conv.sources || conv.sources === "[]" || conv.sources === "{}") return null;
+                          let parsedSources: any[] = [];
+                          let parsedModel: string | undefined = undefined;
+                          try {
+                            const parsed = JSON.parse(conv.sources);
+                            if (Array.isArray(parsed)) {
+                              parsedSources = parsed;
+                            } else if (parsed && typeof parsed === "object") {
+                              parsedSources = parsed.sources || [];
+                              parsedModel = parsed.model;
+                            }
+                          } catch (e) {
+                            return null;
+                          }
+
+                          return (
+                            <div className="mt-2 text-xs flex flex-col gap-1.5">
+                              {parsedSources.length > 0 && (
+                                <div className="flex flex-wrap gap-2 items-center">
+                                  <span className="text-slate-500 font-medium">Sumber:</span>
+                                  {parsedSources.map((src: any, idx: number) => (
+                                    <a 
+                                      key={idx}
+                                      href={src.url} 
+                                      target="_blank" 
+                                      rel="noreferrer" 
+                                      className="text-blue-400 hover:underline font-mono text-[11px]"
+                                    >
+                                      {src.title || "Tautan"}
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+                              {parsedModel && (
+                                <div className="flex items-center gap-1.5 text-slate-400">
+                                  <span className="text-slate-500 font-medium text-[11px]">Model AI:</span>
+                                  <span className="font-mono text-[10px] text-purple-300 bg-purple-950/20 border border-purple-900/40 px-2 py-0.5 rounded-full">
+                                    {parsedModel}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     ))
                   )}
@@ -823,6 +860,32 @@ CREATE TABLE IF NOT EXISTS system_status (
               {/* Form Input Memori Vektor Baru & Cari Vektor */}
               <div className="w-full md:w-80 shrink-0 flex flex-col gap-6 border-b md:border-b-0 md:border-r border-[#2d2f31]/40 pb-6 md:pb-0 md:pr-6">
                 
+                {/* Pengaturan Memori Jangka Panjang Vektor */}
+                <div className="bg-[#131314] rounded-2xl p-4.5 border border-purple-900/30 space-y-3 shadow-md">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <span className="flex items-center gap-1.5 text-purple-400">
+                      <Layers className="w-4 h-4" />
+                      Status Memori Vektor
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-xs text-slate-300 font-medium">Pencarian Vektor (Cosine)</span>
+                    <button
+                      onClick={() => setEnableVector?.(!enableVector)}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center cursor-pointer ${
+                        enableVector ? "bg-purple-600 justify-end" : "bg-slate-700 justify-start"
+                      }`}
+                      title={enableVector ? "Memori Jangka Panjang Aktif" : "Memori Jangka Panjang Nonaktif"}
+                    >
+                      <div className="bg-white w-4 h-4 rounded-full shadow-md" />
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-normal">
+                    Bila diaktifkan, asisten akan otomatis mengingat konteks percakapan lampau menggunakan kecocokan representasi semantik di basis data vektor.
+                  </p>
+                </div>
+
                 {/* Cari Memori Kontekstual (Similarity) */}
                 <div className="flex flex-col gap-3">
                   <h3 className="text-base font-semibold text-white flex items-center gap-2">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Search, Sparkles, Bot, Layers, Info, Compass, ShieldAlert, Wifi, Globe, AlignLeft, Settings, Cpu, Menu, X, Plus, PanelLeft, Database 
+  Search, Sparkles, Bot, Layers, Info, Compass, ShieldAlert, Wifi, Globe, AlignLeft, Settings, Cpu, Menu, X, Plus, PanelLeft, Database, Trash2
 } from "lucide-react";
 import { motion } from "motion/react";
 import ChatMessageList from "./components/ChatMessageList";
@@ -15,6 +15,10 @@ export default function App() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Thread (Session) Management States
+  const [sessionId, setSessionId] = useState<string>("session_default");
+  const [sessions, setSessions] = useState<Array<{ session_id: string; created_at: string; updated_at: string; title: string }>>([]);
+
   // AI Settings State (Default: OpenRouter, Model: openrouter/free)
   const [provider, setProvider] = useState<"openrouter" | "gemini">("openrouter");
   const [model, setModel] = useState<string>("openrouter/free");
@@ -26,11 +30,50 @@ export default function App() {
     ? (model === "custom" ? customModel || "openrouter/free" : model) 
     : "gemini-3.5-flash";
 
-  // Load conversation history on mount
+  // Load list of conversation threads
+  const loadSessions = async () => {
+    try {
+      const response = await fetch("/api/db/sessions");
+      const data = await response.json();
+      if (data.success && data.sessions) {
+        setSessions(data.sessions);
+      }
+    } catch (err) {
+      console.error("Gagal memuat daftar sesi percakapan:", err);
+    }
+  };
+
+  // Start a new thread
+  const handleNewThread = () => {
+    const newId = "session_" + Math.random().toString(36).substring(2, 11);
+    setSessionId(newId);
+    setMessages([]);
+  };
+
+  // Delete a specific thread and its message history
+  const handleDeleteSession = async (id: string) => {
+    try {
+      await fetch(`/api/db/history/session/${id}`, { method: "DELETE" });
+      if (sessionId === id) {
+        const remaining = sessions.filter((s) => s.session_id !== id);
+        if (remaining.length > 0) {
+          setSessionId(remaining[0].session_id);
+        } else {
+          handleNewThread();
+        }
+      } else {
+        loadSessions();
+      }
+    } catch (err) {
+      console.error("Gagal menghapus sesi percakapan:", err);
+    }
+  };
+
+  // Load conversation history and threads whenever sessionId changes
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const response = await fetch("/api/db/history?session_id=session_default");
+        const response = await fetch(`/api/db/history?session_id=${sessionId}`);
         const data = await response.json();
         if (data.success && data.history) {
           // Sort messages ascending by timestamp to display in correct chronological order
@@ -38,21 +81,43 @@ export default function App() {
             (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           );
           
-          const mapped: ChatMessage[] = sortedHistory.map((h: any) => ({
-            id: h.id,
-            role: h.role,
-            content: h.content,
-            timestamp: new Date(h.timestamp),
-            sources: h.sources ? (typeof h.sources === "string" ? JSON.parse(h.sources) : h.sources) : [],
-          }));
+          const mapped: ChatMessage[] = sortedHistory.map((h: any) => {
+            let parsedSources: any[] = [];
+            let parsedModel: string | undefined = undefined;
+            if (h.sources) {
+              try {
+                const parsed = typeof h.sources === "string" ? JSON.parse(h.sources) : h.sources;
+                if (Array.isArray(parsed)) {
+                  parsedSources = parsed;
+                } else if (parsed && typeof parsed === "object") {
+                  parsedSources = parsed.sources || [];
+                  parsedModel = parsed.model;
+                }
+              } catch (e) {
+                console.error("Gagal mengurai sources:", e);
+              }
+            }
+            return {
+              id: h.id,
+              role: h.role,
+              content: h.content,
+              timestamp: new Date(h.timestamp),
+              sources: parsedSources,
+              model: parsedModel,
+            };
+          });
           setMessages(mapped);
+        } else {
+          setMessages([]);
         }
       } catch (err) {
         console.error("Gagal memuat riwayat percakapan dari basis data:", err);
       }
     };
+    
     loadHistory();
-  }, []);
+    loadSessions();
+  }, [sessionId]);
 
   // Send Chat Message to Server API
   const handleSendMessage = async (text: string) => {
@@ -78,6 +143,7 @@ export default function App() {
           provider,
           model: activeModel,
           enable_vector: enableVector,
+          session_id: sessionId,
           messages: updatedMessages.map((m) => ({
             role: m.role,
             content: m.content,
@@ -98,9 +164,11 @@ export default function App() {
         content: data.reply,
         timestamp: new Date(),
         sources: data.sources || [],
+        model: data.model || activeModel,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      await loadSessions();
     } catch (err: any) {
       console.error("Chat Error:", err);
       setErrorMsg(err.message || "Gagal menyambung ke server chatbot.");
@@ -126,6 +194,157 @@ export default function App() {
     }
     setMessages([]);
     setErrorMsg(null);
+  };
+
+  const handleEditUserMessage = async (messageId: string, newText: string) => {
+    setIsChatLoading(true);
+    setErrorMsg(null);
+
+    try {
+      // 1. Truncate operational DB from that message onwards (inclusive of the message itself, so we can re-add it)
+      await fetch("/api/db/history/truncate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: messageId, session_id: sessionId }),
+      });
+
+      // 2. Truncate local React state
+      const targetIndex = messages.findIndex((m) => m.id === messageId);
+      if (targetIndex === -1) {
+        setIsChatLoading(false);
+        return;
+      }
+      const keptMessages = messages.slice(0, targetIndex);
+      
+      // 3. Create immediate user message with new text
+      const userMessage: ChatMessage = {
+        id: messageId,
+        role: "user",
+        content: newText,
+        timestamp: new Date(),
+      };
+
+      const updatedMessages = [...keptMessages, userMessage];
+      setMessages(updatedMessages);
+
+      // 4. Save new user message to Operational DB & get assistant reply
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider,
+          model: activeModel,
+          enable_vector: enableVector,
+          session_id: sessionId,
+          messages: updatedMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Gagal mendapatkan jawaban dari server.");
+      }
+
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.reply,
+        timestamp: new Date(),
+        sources: data.sources || [],
+        model: data.model || activeModel,
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+      await loadSessions();
+    } catch (err: any) {
+      console.error("Edit User Message Error:", err);
+      setErrorMsg(err.message || "Gagal mengedit pesan dan menyambung ke server chatbot.");
+      
+      const assistantErrorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `⚠️ **Maaf, terjadi masalah saat menghubungi server.** \n\n*Detail Error:* ${err.message || "Koneksi terputus atau server tidak merespon."}\n\nMohon pastikan server dev Anda sedang berjalan dan kunci API Google Gemini Anda telah diatur di panel Secrets.`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantErrorMessage]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const handleRegenerate = async (assistantMessageId: string) => {
+    setIsChatLoading(true);
+    setErrorMsg(null);
+
+    try {
+      // 1. Delete the assistant message from the DB
+      await fetch(`/api/db/history/message/${assistantMessageId}`, { method: "DELETE" });
+
+      // 2. Truncate React state: remove the target assistant message and subsequent ones
+      const targetIndex = messages.findIndex((m) => m.id === assistantMessageId);
+      if (targetIndex === -1) {
+        setIsChatLoading(false);
+        return;
+      }
+      
+      const updatedMessages = messages.slice(0, targetIndex);
+      setMessages(updatedMessages);
+
+      if (updatedMessages.length === 0) {
+        setIsChatLoading(false);
+        return;
+      }
+
+      // 3. Re-send updated messages to API to get new response
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider,
+          model: activeModel,
+          enable_vector: enableVector,
+          session_id: sessionId,
+          messages: updatedMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Gagal mendapatkan jawaban dari server.");
+      }
+
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.reply,
+        timestamp: new Date(),
+        sources: data.sources || [],
+        model: data.model || activeModel,
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+      await loadSessions();
+    } catch (err: any) {
+      console.error("Regenerate Error:", err);
+      setErrorMsg(err.message || "Gagal mengulangi tanggapan dari chatbot.");
+      
+      const assistantErrorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `⚠️ **Maaf, terjadi masalah saat menghubungi server.** \n\n*Detail Error:* ${err.message || "Koneksi terputus atau server tidak merespon."}\n\nMohon pastikan server dev Anda sedang berjalan dan kunci API Google Gemini Anda telah diatur di panel Secrets.`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantErrorMessage]);
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
   return (
@@ -224,9 +443,9 @@ export default function App() {
           ? "w-full md:w-80 border-b md:border-b-0 md:border-r p-6 flex flex-col gap-6 justify-between opacity-100" 
           : "w-0 h-0 p-0 overflow-hidden md:w-0 border-r-0 border-b-0 opacity-0 pointer-events-none"
       }`}>
-        <div className="space-y-6">
+        <div className="space-y-6 flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Logo / Branding */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-2.5">
               <svg className="w-6 h-6 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 2C12 2 13 8 18 12C13 12 12 18 12 22C12 22 11 16 6 12C11 12 12 2 12 2Z" fill="url(#geminiStarGradient)" />
@@ -247,7 +466,7 @@ export default function App() {
           </div>
 
           {/* Menu Navigasi Samping */}
-          <div className="space-y-2">
+          <div className="space-y-2 shrink-0">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block px-2 mb-2">
               Notebook & Navigasi
             </span>
@@ -289,36 +508,65 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          {/* Thread List Section */}
+          <div className="flex-1 flex flex-col min-h-0 space-y-2 border-t border-[#2d2f31]/40 pt-4">
+            <div className="flex items-center justify-between px-2 shrink-0">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                Terbaru (Thread)
+              </span>
+              <button
+                onClick={handleNewThread}
+                className="px-2 py-1 rounded bg-[#131314] hover:bg-[#2d2f31] border border-[#2d2f31]/50 text-slate-400 hover:text-white transition-all cursor-pointer flex items-center gap-1.5 text-[10px] font-medium"
+                title="Mulai Sesi Baru"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Baru</span>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+              {sessions.map((sess) => (
+                <div
+                  key={sess.session_id}
+                  className={`group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-xs transition-all duration-200 cursor-pointer ${
+                    sessionId === sess.session_id
+                      ? "bg-[#2d2f31] text-white font-medium shadow-sm border border-[#3c3d3f]/25"
+                      : "text-[#c4c7c5] hover:text-white hover:bg-[#2d2f31]/40"
+                  }`}
+                  onClick={() => setSessionId(sess.session_id)}
+                >
+                  <div className="flex items-center gap-2.5 overflow-hidden w-full pr-7">
+                    <svg className={`w-3.5 h-3.5 shrink-0 ${sessionId === sess.session_id ? "text-blue-400" : "text-slate-500"}`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="truncate" title={sess.title}>
+                      {sess.title}
+                    </span>
+                  </div>
+                  {/* Delete session button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteSession(sess.session_id);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-[#131314]/70 rounded-md text-slate-400 hover:text-red-400 transition-all cursor-pointer"
+                    title="Hapus Thread"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+              {sessions.length === 0 && (
+                <div className="text-[11px] text-slate-500 text-center py-6">
+                  Belum ada riwayat percakapan.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Status Koneksi & Kredensial di Bawah Sidebar */}
         <div className="pt-4 border-t border-[#2d2f31]/60 space-y-4 overflow-y-auto max-h-[350px]">
-
-          {/* Pengaturan Memori Jangka Panjang Vektor */}
-          <div className="bg-[#131314] rounded-2xl p-3 border border-[#2d2f31]/40 space-y-2">
-            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              <span className="flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-purple-400" />
-                Memori Jangka Panjang
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between py-1">
-              <span className="text-[11px] text-slate-300">Pencarian Vektor (Cosine)</span>
-              <button
-                onClick={() => setEnableVector(!enableVector)}
-                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none flex items-center ${
-                  enableVector ? "bg-purple-600 justify-end" : "bg-slate-700 justify-start"
-                }`}
-                title={enableVector ? "Memori Jangka Panjang Aktif" : "Memori Jangka Panjang Nonaktif"}
-              >
-                <div className="bg-white w-4 h-4 rounded-full shadow-md" />
-              </button>
-            </div>
-            <p className="text-[9px] text-slate-400 leading-normal">
-              Bila diaktifkan, asisten akan otomatis mengingat konteks percakapan lampau menggunakan kecocokan representasi semantik di basis data vektor.
-            </p>
-          </div>
 
           {/* Pengaturan Provider & Model AI */}
           <div className="bg-[#131314] rounded-2xl p-3 border border-[#2d2f31]/40 space-y-2">
@@ -434,7 +682,7 @@ export default function App() {
         {/* Scrollable Content Container (Outside main) */}
         <div className="flex-1 overflow-y-auto">
           {activeTab === "database" ? (
-            <DatabaseDashboard />
+            <DatabaseDashboard enableVector={enableVector} setEnableVector={setEnableVector} />
           ) : (
             <div className="p-4 sm:p-6 md:p-8">
               <div className="max-w-4xl mx-auto w-full space-y-6">
@@ -459,6 +707,8 @@ export default function App() {
                       isLoading={isChatLoading}
                       provider={provider}
                       model={activeModel}
+                      onEditUserMessage={handleEditUserMessage}
+                      onRegenerate={handleRegenerate}
                     />
                   ) : (
                     <TextSummarizer provider={provider} model={activeModel} />

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
   Compass, Globe, Sparkles, HelpCircle, Clock, Trash2, 
-  Copy, Check, ArrowUpRight, Loader2, Search, User
+  Copy, Check, ArrowUpRight, Loader2, Search, User, Cpu,
+  Pencil, RotateCcw
 } from "lucide-react";
 import Markdown from "react-markdown";
 import { motion, AnimatePresence } from "motion/react";
@@ -80,6 +81,8 @@ interface ChatMessageListProps {
   isLoading: boolean;
   provider: "openrouter" | "gemini";
   model: string;
+  onEditUserMessage?: (messageId: string, newText: string) => Promise<void>;
+  onRegenerate?: (messageId: string) => Promise<void>;
 }
 
 export default function ChatMessageList({
@@ -88,10 +91,14 @@ export default function ChatMessageList({
   onClearHistory,
   isLoading,
   provider,
-  model
+  model,
+  onEditUserMessage,
+  onRegenerate
 }: ChatMessageListProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -122,7 +129,15 @@ export default function ChatMessageList({
             {provider === "openrouter" ? (
               <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                OpenRouter: {model}
+                OpenRouter: {model === "openrouter/free" 
+                  ? (() => {
+                      const lastAssistantWithModel = [...messages].reverse().find(m => m.role === "assistant" && m.model);
+                      return lastAssistantWithModel?.model 
+                        ? `openrouter/free (${lastAssistantWithModel.model})` 
+                        : "openrouter/free (Auto Free)";
+                    })()
+                  : model
+                }
               </div>
             ) : (
               <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-medium">
@@ -229,21 +244,65 @@ export default function ChatMessageList({
                   {message.role === "user" ? (
                     // User Message - Right Aligned with Clean Custom Rounded Bubble & No messy horizontal borders
                     <div className="flex gap-3 max-w-[85%] ml-auto justify-end items-start w-full">
-                      <div className="flex flex-col items-end gap-1.5 min-w-0">
-                        <div className="bg-[#2a2b2d] hover:bg-[#323335] text-slate-100 px-4.5 py-3 rounded-2xl rounded-tr-xs shadow-sm transition-colors border border-[#3c3d3f]/25">
-                          <div className="markdown-body user-message break-words text-sm leading-relaxed">
-                            <Markdown>{message.content}</Markdown>
+                      <div className="flex flex-col items-end gap-1.5 min-w-0 w-full">
+                        {editingMessageId === message.id ? (
+                          <div className="w-full max-w-md bg-[#1e1f20] border border-[#2d2f31] rounded-2xl p-3 flex flex-col gap-2">
+                            <textarea
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                              rows={3}
+                              className="w-full bg-[#131314] text-slate-100 text-sm p-3 rounded-xl border border-[#2d2f31]/60 focus:border-blue-500 focus:outline-none resize-none font-sans"
+                              placeholder="Tulis pesan baru Anda di sini..."
+                            />
+                            <div className="flex justify-end gap-2 text-xs">
+                              <button
+                                onClick={() => setEditingMessageId(null)}
+                                className="px-3 py-1.5 rounded-lg text-slate-400 hover:bg-[#2d2f31]/50 cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (editText.trim() && onEditUserMessage) {
+                                    onEditUserMessage(message.id, editText.trim());
+                                  }
+                                  setEditingMessageId(null);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-500 transition-colors cursor-pointer"
+                              >
+                                Simpan & Kirim
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-1 text-[9px] text-slate-500 font-mono pr-1 select-none">
-                          <Clock className="w-2.5 h-2.5" />
-                          <span>
-                            {new Date(message.timestamp).toLocaleTimeString("id-ID", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
+                        ) : (
+                          <div className="group relative flex flex-col items-end gap-1.5 min-w-0 max-w-full">
+                            <button
+                              onClick={() => {
+                                setEditingMessageId(message.id);
+                                setEditText(message.content);
+                              }}
+                              className="absolute -left-8 top-1/2 -translate-y-1/2 p-1 bg-[#1e1f20]/90 border border-[#2d2f31]/40 rounded-lg text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition-all shadow-md cursor-pointer"
+                              title="Edit pesan"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            
+                            <div className="bg-[#2a2b2d] hover:bg-[#323335] text-slate-100 px-4.5 py-3 rounded-2xl rounded-tr-xs shadow-sm transition-colors border border-[#3c3d3f]/25">
+                              <div className="markdown-body user-message break-words text-sm leading-relaxed">
+                                <Markdown>{message.content}</Markdown>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 text-[9px] text-slate-500 font-mono pr-1 select-none">
+                              <Clock className="w-2.5 h-2.5" />
+                              <span>
+                                {new Date(message.timestamp).toLocaleTimeString("id-ID", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="w-8 h-8 rounded-full bg-slate-600 border border-[#4d4f52]/40 flex items-center justify-center text-slate-100 shrink-0 select-none animate-fade-in">
                         <User className="w-4 h-4" />
@@ -312,6 +371,31 @@ export default function ChatMessageList({
                               </>
                             )}
                           </button>
+                          {onRegenerate && (
+                            <>
+                              <span className="text-[#2d2f31]">•</span>
+                              <button
+                                onClick={() => onRegenerate(message.id)}
+                                disabled={isLoading}
+                                className={`flex items-center gap-1 text-slate-400 hover:text-purple-400 hover:bg-[#1e1f20] px-1.5 py-1 rounded-md transition-all cursor-pointer ${
+                                  isLoading ? "opacity-50 cursor-not-allowed" : ""
+                                }`}
+                                title="Ulangi tanggapan"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Ulangi</span>
+                              </button>
+                            </>
+                          )}
+                          {message.model && (
+                            <>
+                              <span className="text-[#2d2f31]">•</span>
+                              <div className="flex items-center gap-1 bg-purple-950/25 text-purple-300 border border-purple-900/40 px-2 py-0.5 rounded-full font-mono text-[9px] font-medium animate-fade-in" title="Model AI yang memproses tanggapan ini">
+                                <Cpu className="w-2.5 h-2.5 text-purple-400" />
+                                <span>{message.model}</span>
+                              </div>
+                            </>
+                          )}
                         </div>
 
                         {/* Sources Section - Beautifully flows directly under message controls */}

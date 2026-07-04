@@ -307,6 +307,91 @@ export const db = {
         data.conversation_history = [];
         localDb.saveOperational(data);
       }
+    },
+    delete: async (id: string): Promise<boolean> => {
+      if (pgPool) {
+        const res = await pgPool.query("DELETE FROM conversation_history WHERE id = $1", [id]);
+        return (res.rowCount ?? 0) > 0;
+      } else {
+        const data = localDb.getOperational();
+        const initialLen = data.conversation_history.length;
+        data.conversation_history = data.conversation_history.filter((c: ConversationRecord) => c.id !== id);
+        localDb.saveOperational(data);
+        return data.conversation_history.length < initialLen;
+      }
+    },
+    truncateFromMessage: async (id: string, session_id: string): Promise<void> => {
+      if (pgPool) {
+        const checkRes = await pgPool.query("SELECT timestamp FROM conversation_history WHERE id = $1", [id]);
+        if (checkRes.rows.length > 0) {
+          const ts = checkRes.rows[0].timestamp;
+          await pgPool.query("DELETE FROM conversation_history WHERE session_id = $1 AND timestamp >= $2", [session_id, ts]);
+        }
+      } else {
+        const data = localDb.getOperational();
+        const index = data.conversation_history.findIndex((c: ConversationRecord) => c.id === id);
+        if (index !== -1) {
+          const targetMsg = data.conversation_history[index];
+          const targetTime = new Date(targetMsg.timestamp).getTime();
+          data.conversation_history = data.conversation_history.filter((c: ConversationRecord) => {
+            if (c.session_id !== session_id) return true;
+            return new Date(c.timestamp).getTime() < targetTime;
+          });
+          localDb.saveOperational(data);
+        }
+      }
+    },
+    listSessions: async (): Promise<Array<{ session_id: string; created_at: string; updated_at: string; title: string }>> => {
+      if (pgPool) {
+        const query = `
+          SELECT 
+            session_id, 
+            MIN(timestamp) as created_at, 
+            MAX(timestamp) as updated_at,
+            COALESCE(
+              (SELECT content FROM conversation_history ch2 WHERE ch2.session_id = ch.session_id AND ch2.role = 'user' ORDER BY ch2.timestamp ASC LIMIT 1),
+              'Percakapan Baru'
+            ) as title
+          FROM conversation_history ch
+          GROUP BY session_id
+          ORDER BY updated_at DESC
+        `;
+        const res = await pgPool.query(query);
+        return res.rows;
+      } else {
+        const data = localDb.getOperational();
+        const sessionsMap = new Map<string, { session_id: string; created_at: string; updated_at: string; title: string }>();
+        data.conversation_history.forEach((c: ConversationRecord) => {
+          const existing = sessionsMap.get(c.session_id);
+          const ts = c.timestamp;
+          if (!existing) {
+            sessionsMap.set(c.session_id, {
+              session_id: c.session_id,
+              created_at: ts,
+              updated_at: ts,
+              title: c.role === "user" ? c.content : "Percakapan Baru"
+            });
+          } else {
+            existing.updated_at = ts;
+            if (c.role === "user" && existing.title === "Percakapan Baru") {
+              existing.title = c.content;
+            }
+          }
+        });
+        return Array.from(sessionsMap.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      }
+    },
+    deleteSession: async (session_id: string): Promise<boolean> => {
+      if (pgPool) {
+        const res = await pgPool.query("DELETE FROM conversation_history WHERE session_id = $1", [session_id]);
+        return (res.rowCount ?? 0) > 0;
+      } else {
+        const data = localDb.getOperational();
+        const initialLen = data.conversation_history.length;
+        data.conversation_history = data.conversation_history.filter((c: ConversationRecord) => c.session_id !== session_id);
+        localDb.saveOperational(data);
+        return data.conversation_history.length < initialLen;
+      }
     }
   },
 

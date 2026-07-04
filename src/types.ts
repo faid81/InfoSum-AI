@@ -9,6 +9,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   sources?: SearchSource[];
+  model?: string;
 }
 
 export type ActiveTab = "chat" | "summarize" | "database";

@@ -3,6 +3,10 @@ import path from "path";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
+// @ts-ignore
+import mammoth from "mammoth";
+// @ts-ignore
+import { PDFParse } from "pdf-parse";
 import { db, vectorDb, getEmbedding, initializeDatabase } from "./src/db_manager.js";
 
 // Load environment variables
@@ -140,7 +144,11 @@ Sertakan penjelasan yang logis dan ringkas. Jangan membuat-buat informasi (halus
 
       // Save assistant reply to Operational DB
       try {
-        await db.conversations.add(session_id, "assistant", replyText, uniqueSources);
+        const actualModel = data.model || model || "openrouter/free";
+        await db.conversations.add(session_id, "assistant", replyText, {
+          sources: uniqueSources,
+          model: actualModel
+        } as any);
       } catch (dbErr) {
         console.error("Gagal menyimpan balasan asisten ke database operasional:", dbErr);
       }
@@ -173,6 +181,7 @@ Sertakan penjelasan yang logis dan ringkas. Jangan membuat-buat informasi (halus
       res.json({
         reply: replyText,
         sources: uniqueSources,
+        model: data.model || model || "openrouter/free"
       });
       return;
     }
@@ -226,7 +235,10 @@ Sertakan penjelasan yang logis dan ringkas. Jangan membuat-buat informasi (halus
 
     // Save assistant reply to Operational DB
     try {
-      await db.conversations.add(session_id, "assistant", replyText, uniqueSources);
+      await db.conversations.add(session_id, "assistant", replyText, {
+        sources: uniqueSources,
+        model: "gemini-3.5-flash"
+      } as any);
     } catch (dbErr) {
       console.error("Gagal menyimpan balasan asisten ke database operasional:", dbErr);
     }
@@ -257,6 +269,7 @@ Sertakan penjelasan yang logis dan ringkas. Jangan membuat-buat informasi (halus
     res.json({
       reply: replyText,
       sources: uniqueSources,
+      model: "gemini-3.5-flash",
     });
   } catch (error: any) {
     console.error("Error in /api/chat:", error);
@@ -482,6 +495,61 @@ ${contentToSummarize.slice(0, 30000)} ${contentToSummarize.length > 30000 ? "...
   }
 });
 
+// API Endpoint to parse uploaded documents (PDF, Word, TXT, etc.)
+app.post("/api/parse-document", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { base64, fileName, mimeType } = req.body;
+
+    if (!base64) {
+      res.status(400).json({ error: "Mohon unggah file dokumen yang valid." });
+      return;
+    }
+
+    const buffer = Buffer.from(base64, "base64");
+    let extractedText = "";
+
+    const ext = fileName ? fileName.split(".").pop().toLowerCase() : "";
+
+    if (ext === "pdf" || mimeType === "application/pdf") {
+      try {
+        const parser = new PDFParse({ data: buffer });
+        const result = await parser.getText();
+        extractedText = result.text || "";
+      } catch (err: any) {
+        throw new Error(`Gagal mengekstrak teks dari PDF: ${err.message}`);
+      }
+    } else if (
+      ext === "docx" || 
+      mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) {
+      try {
+        const result = await mammoth.extractRawText({ buffer });
+        extractedText = result.value || "";
+      } catch (err: any) {
+        throw new Error(`Gagal mengekstrak teks dari Word (.docx): ${err.message}`);
+      }
+    } else {
+      // Default fallback to UTF-8 text string (for .txt, .md, .csv, .json, etc.)
+      extractedText = buffer.toString("utf-8");
+    }
+
+    if (!extractedText.trim()) {
+      res.status(422).json({ error: "Dokumen berhasil dibaca namun tidak mengandung teks yang dapat diproses." });
+      return;
+    }
+
+    res.json({
+      success: true,
+      text: extractedText,
+      charCount: extractedText.length,
+      wordCount: extractedText.split(/\s+/).filter(Boolean).length
+    });
+  } catch (error: any) {
+    console.error("Error in /api/parse-document:", error);
+    res.status(500).json({ error: error.message || "Gagal mengurai dokumen." });
+  }
+});
+
 // ==========================================
 // Operational Database & Vector DB Endpoints
 // ==========================================
@@ -533,6 +601,27 @@ app.get("/api/db/history", async (req: Request, res: Response) => {
   }
 });
 
+// 4b. GET Conversation Sessions (Threads)
+app.get("/api/db/sessions", async (req: Request, res: Response) => {
+  try {
+    const sessions = await (db.conversations as any).listSessions();
+    res.json({ success: true, sessions });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Gagal mengambil daftar sesi obrolan" });
+  }
+});
+
+// 4c. DELETE Specific Session (Thread) and its messages
+app.delete("/api/db/history/session/:session_id", async (req: Request, res: Response) => {
+  try {
+    const { session_id } = req.params;
+    const deleted = await (db.conversations as any).deleteSession(session_id);
+    res.json({ success: true, deleted, message: "Sesi percakapan berhasil dihapus." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Gagal menghapus sesi percakapan" });
+  }
+});
+
 // 5. POST Clear Conversation History
 app.post("/api/db/history/clear", async (req: Request, res: Response) => {
   try {
@@ -540,6 +629,32 @@ app.post("/api/db/history/clear", async (req: Request, res: Response) => {
     res.json({ success: true, message: "Seluruh riwayat percakapan berhasil dihapus." });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Gagal menghapus riwayat percakapan" });
+  }
+});
+
+// 5b. DELETE Individual Message
+app.delete("/api/db/history/message/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const deleted = await db.conversations.delete(id);
+    res.json({ success: true, deleted, message: "Pesan berhasil dihapus." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Gagal menghapus pesan" });
+  }
+});
+
+// 5c. POST Truncate Conversation History (from a message id onwards)
+app.post("/api/db/history/truncate", async (req: Request, res: Response) => {
+  try {
+    const { id, session_id = "session_default" } = req.body;
+    if (!id) {
+      res.status(400).json({ error: "Sediakan parameter id pesan untuk pemotongan riwayat." });
+      return;
+    }
+    await db.conversations.truncateFromMessage(id, session_id);
+    res.json({ success: true, message: "Riwayat berhasil dipotong sejak pesan yang ditentukan." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Gagal memotong riwayat percakapan" });
   }
 });
 
