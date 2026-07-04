@@ -85,9 +85,10 @@ export default function App() {
     }
   };
 
-  // Initial startup load to select the latest thread
+  // Initial startup load to start a new thread every time the app opens
   useEffect(() => {
-    loadSessions(true);
+    loadSessions(false);
+    handleNewThread();
   }, []);
 
   // Load conversation history and threads whenever sessionId changes
@@ -198,7 +199,7 @@ export default function App() {
       const assistantErrorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: `⚠️ **Maaf, terjadi masalah saat menghubungi server.** \n\n*Detail Error:* ${err.message || "Koneksi terputus atau server tidak merespon."}\n\nMohon pastikan server dev Anda sedang berjalan dan kunci API Google Gemini Anda telah diatur di panel Secrets.`,
+        content: `⚠️ **Maaf, terjadi masalah saat menghubungi server.** \n\n*Detail Error:* ${err.message || "Koneksi terputus atau server tidak merespon."}\n\nMohon pastikan server dev Anda sedang berjalan dan kunci API Agentic AI Anda telah diatur di panel Secrets.`,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantErrorMessage]);
@@ -287,7 +288,7 @@ export default function App() {
       const assistantErrorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: `⚠️ **Maaf, terjadi masalah saat menghubungi server.** \n\n*Detail Error:* ${err.message || "Koneksi terputus atau server tidak merespon."}\n\nMohon pastikan server dev Anda sedang berjalan dan kunci API Google Gemini Anda telah diatur di panel Secrets.`,
+        content: `⚠️ **Maaf, terjadi masalah saat menghubungi server.** \n\n*Detail Error:* ${err.message || "Koneksi terputus atau server tidak merespon."}\n\nMohon pastikan server dev Anda sedang berjalan dan kunci API Agentic AI Anda telah diatur di panel Secrets.`,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantErrorMessage]);
@@ -359,7 +360,7 @@ export default function App() {
       const assistantErrorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: `⚠️ **Maaf, terjadi masalah saat menghubungi server.** \n\n*Detail Error:* ${err.message || "Koneksi terputus atau server tidak merespon."}\n\nMohon pastikan server dev Anda sedang berjalan dan kunci API Google Gemini Anda telah diatur di panel Secrets.`,
+        content: `⚠️ **Maaf, terjadi masalah saat menghubungi server.** \n\n*Detail Error:* ${err.message || "Koneksi terputus atau server tidak merespon."}\n\nMohon pastikan server dev Anda sedang berjalan dan kunci API Agentic AI Anda telah diatur di panel Secrets.`,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantErrorMessage]);
@@ -387,14 +388,20 @@ export default function App() {
       {!sidebarOpen && (
         <aside className="hidden md:flex w-16 border-r border-[#2d2f31]/40 bg-[#1e1f20] flex-col items-center py-6 justify-between shrink-0 relative z-10 transition-all duration-300">
           <div className="flex flex-col items-center gap-6 w-full">
-            {/* Logo Gemini Star */}
+            {/* Logo Agentic AI */}
             <div 
               className="cursor-pointer p-1" 
               title="Buka Menu Penuh"
               onClick={() => setSidebarOpen(true)}
             >
               <svg className="w-6 h-6 animate-pulse" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2C12 2 13 8 18 12C13 12 12 18 12 22C12 22 11 16 6 12C11 12 12 2 12 2Z" fill="url(#geminiStarGradient)" />
+                <circle cx="12" cy="12" r="9" stroke="url(#geminiStarGradient)" strokeWidth="2" strokeDasharray="3 2" />
+                <path d="M12 8v8M8 12h8" stroke="url(#geminiStarGradient)" strokeWidth="2" strokeLinecap="round" />
+                <circle cx="12" cy="12" r="3.5" fill="url(#geminiStarGradient)" />
+                <circle cx="12" cy="8" r="1.5" fill="#ffffff" />
+                <circle cx="12" cy="16" r="1.5" fill="#ffffff" />
+                <circle cx="8" cy="12" r="1.5" fill="#ffffff" />
+                <circle cx="16" cy="12" r="1.5" fill="#ffffff" />
               </svg>
             </div>
 
@@ -467,11 +474,17 @@ export default function App() {
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-4">
           {/* Logo / Branding */}
           <div className="flex items-center justify-between gap-2 shrink-0 px-4.5">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <svg className="w-5.5 h-5.5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2C12 2 13 8 18 12C13 12 12 18 12 22C12 22 11 16 6 12C11 12 12 2 12 2Z" fill="url(#geminiStarGradient)" />
+                <circle cx="12" cy="12" r="9" stroke="url(#geminiStarGradient)" strokeWidth="2" strokeDasharray="3 2" />
+                <path d="M12 8v8M8 12h8" stroke="url(#geminiStarGradient)" strokeWidth="2" strokeLinecap="round" />
+                <circle cx="12" cy="12" r="3.5" fill="url(#geminiStarGradient)" />
+                <circle cx="12" cy="8" r="1.5" fill="#ffffff" />
+                <circle cx="12" cy="16" r="1.5" fill="#ffffff" />
+                <circle cx="8" cy="12" r="1.5" fill="#ffffff" />
+                <circle cx="16" cy="12" r="1.5" fill="#ffffff" />
               </svg>
-              <h1 className="text-[15px] font-semibold text-[#e3e3e3] tracking-normal leading-none">Gemini</h1>
+              <h1 className="text-[15px] font-semibold text-[#e3e3e3] tracking-normal leading-none">Agentic AI</h1>
             </div>
             {/* Collapse button directly inside the full sidebar */}
             <button
@@ -767,7 +780,7 @@ export default function App() {
 
         {/* Footer Hak Cipta & Info */}
         <footer className="bg-transparent border-t border-[#2d2f31]/20 py-3.5 px-6 shrink-0 text-center md:text-left text-[11px] text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>© 2026 Chatbot Pencarian & Ringkasan Online. Terinspirasi oleh Google Gemini.</p>
+          <p>© 2026 Chatbot Pencarian & Ringkasan Online. Terinspirasi oleh Agentic AI.</p>
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1 text-slate-500">
               <Globe className="w-3 h-3" />
@@ -823,7 +836,7 @@ export default function App() {
                 className="w-full bg-[#131314] text-xs text-slate-200 rounded-xl p-3 border border-[#2d2f31]/80 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
               >
                 <option value="openrouter">OpenRouter (Default - Tanpa API Key)</option>
-                <option value="gemini">Google Gemini (Server-side API)</option>
+                <option value="gemini">Agentic AI (Server-side API)</option>
               </select>
             </div>
 
@@ -889,7 +902,7 @@ export default function App() {
 
             {/* Info footer inside modal */}
             <div className="flex items-center justify-between text-[10px] text-slate-500 pt-3 border-t border-[#2d2f31]/30 mt-2">
-              <span>Powered by Gemini & Search Grounding</span>
+              <span>Powered by Agentic AI & Search Grounding</span>
               <span>Versi 1.1</span>
             </div>
 

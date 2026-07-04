@@ -154,7 +154,7 @@ export default function TextSummarizer({ provider, model }: TextSummarizerProps)
       if (inputType === "url") {
         setTimeout(() => setLoadingStep("Mengekstrak teks utama dan membersihkan tag HTML..."), 1500);
       }
-      setTimeout(() => setLoadingStep(`Menganalisis poin-poin penting menggunakan ${provider === "openrouter" ? "OpenRouter" : "Gemini AI"}...`), 3000);
+      setTimeout(() => setLoadingStep(`Menganalisis poin-poin penting menggunakan ${provider === "openrouter" ? "OpenRouter" : "Agentic AI"}...`), 3000);
       setTimeout(() => setLoadingStep("Menyusun ringkasan otomatis sesuai format..."), 4500);
 
       const response = await fetch("/api/summarize", {

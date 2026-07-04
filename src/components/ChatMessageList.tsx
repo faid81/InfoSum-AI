@@ -131,7 +131,13 @@ export default function ChatMessageList({
             >
               <div className="w-12 h-12 rounded-full bg-[#1e1f20] flex items-center justify-center">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 2C12 2 13 8 18 12C13 12 12 18 12 22C12 22 11 16 6 12C11 12 12 2 12 2Z" fill="url(#geminiStarGradient)" />
+                  <circle cx="12" cy="12" r="9" stroke="url(#geminiStarGradient)" strokeWidth="2" strokeDasharray="3 2" />
+                  <path d="M12 8v8M8 12h8" stroke="url(#geminiStarGradient)" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx="12" cy="12" r="3.5" fill="url(#geminiStarGradient)" />
+                  <circle cx="12" cy="8" r="1.5" fill="#ffffff" />
+                  <circle cx="12" cy="16" r="1.5" fill="#ffffff" />
+                  <circle cx="8" cy="12" r="1.5" fill="#ffffff" />
+                  <circle cx="16" cy="12" r="1.5" fill="#ffffff" />
                 </svg>
               </div>
               <div className="space-y-1.5">
@@ -249,7 +255,13 @@ export default function ChatMessageList({
                     <div className="flex gap-4 max-w-[95%] items-start w-full">
                       <div className="w-8 h-8 rounded-full bg-[#1e1f20] border border-[#2d2f31]/40 flex items-center justify-center shrink-0 mt-0.5 select-none shadow-xs">
                         <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 2C12 2 13 8 18 12C13 12 12 18 12 22C12 22 11 16 6 12C11 12 12 2 12 2Z" fill="url(#geminiStarGradient)" />
+                          <circle cx="12" cy="12" r="9" stroke="url(#geminiStarGradient)" strokeWidth="1.5" strokeDasharray="3 2" />
+                          <path d="M12 8v8M8 12h8" stroke="url(#geminiStarGradient)" strokeWidth="1.5" strokeLinecap="round" />
+                          <circle cx="12" cy="12" r="2.5" fill="url(#geminiStarGradient)" />
+                          <circle cx="12" cy="8" r="1" fill="#ffffff" />
+                          <circle cx="12" cy="16" r="1" fill="#ffffff" />
+                          <circle cx="8" cy="12" r="1" fill="#ffffff" />
+                          <circle cx="16" cy="12" r="1" fill="#ffffff" />
                         </svg>
                       </div>
                       
@@ -381,7 +393,13 @@ export default function ChatMessageList({
           >
             <div className="w-8 h-8 rounded-full bg-[#1e1f20] border border-[#2d2f31]/40 flex items-center justify-center shrink-0 mt-0.5 select-none">
               <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2C12 2 13 8 18 12C13 12 12 18 12 22C12 22 11 16 6 12C11 12 12 2 12 2Z" fill="url(#geminiStarGradient)" />
+                <circle cx="12" cy="12" r="9" stroke="url(#geminiStarGradient)" strokeWidth="1.5" strokeDasharray="3 2" />
+                <path d="M12 8v8M8 12h8" stroke="url(#geminiStarGradient)" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="12" cy="12" r="2.5" fill="url(#geminiStarGradient)" />
+                <circle cx="12" cy="8" r="1" fill="#ffffff" />
+                <circle cx="12" cy="16" r="1" fill="#ffffff" />
+                <circle cx="8" cy="12" r="1" fill="#ffffff" />
+                <circle cx="16" cy="12" r="1" fill="#ffffff" />
               </svg>
             </div>
             <div className="space-y-2 max-w-[85%]">

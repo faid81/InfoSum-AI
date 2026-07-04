@@ -301,7 +301,7 @@ export default function DatabaseDashboard({
       });
       const data = await res.json();
       if (data.success) {
-        showFeedback("success", "Memori teks berhasil di-embed menggunakan Gemini & disimpan di database vektor!");
+        showFeedback("success", "Memori teks berhasil di-embed menggunakan Agentic AI & disimpan di database vektor!");
         setNewVectorText("");
         fetchVectors();
         fetchDbStatus();
@@ -481,7 +481,7 @@ export default function DatabaseDashboard({
                     <div className="text-slate-400 text-xs uppercase tracking-wider mb-1 font-semibold">Vector Database Engine:</div>
                     <span className="text-purple-400 font-bold">{vectorEngine || "Local Embed Cosine Similarity"}</span>
                     <p className="text-xs text-slate-400 mt-1">
-                      Menggunakan model AI <code className="text-[#e3e3e3] bg-black/30 px-1 py-0.5 rounded">gemini-embedding-2-preview</code> untuk mengekstraksi representasi semantik, dan menghitung relevansi dengan rumus Cosine Similarity untuk pencarian kontekstual.
+                      Menggunakan model AI <code className="text-[#e3e3e3] bg-black/30 px-1 py-0.5 rounded">agentic-embedding</code> untuk mengekstraksi representasi semantik, dan menghitung relevansi dengan rumus Cosine Similarity untuk pencarian kontekstual.
                     </p>
                   </div>
                 </div>
@@ -922,7 +922,7 @@ CREATE TABLE IF NOT EXISTS system_status (
                     Tambah Memori Jangka Panjang
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Kirim memori eksplisit. Kalimat akan secara otomatis di-embed dengan model <code className="text-[10px] bg-black/40 px-1 py-0.5 rounded text-purple-300">gemini-embedding-2-preview</code>.
+                    Kirim memori eksplisit. Kalimat akan secara otomatis di-embed dengan model <code className="text-[10px] bg-black/40 px-1 py-0.5 rounded text-purple-300">agentic-embedding</code>.
                   </p>
 
                   <form onSubmit={handleAddVector} className="flex flex-col gap-2 mt-1">
