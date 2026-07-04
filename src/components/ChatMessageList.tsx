@@ -5,6 +5,7 @@ import {
   Pencil, RotateCcw
 } from "lucide-react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "motion/react";
 import { ChatMessage } from "../types";
 
@@ -289,7 +290,7 @@ export default function ChatMessageList({
                             
                             <div className="bg-[#2a2b2d] hover:bg-[#323335] text-slate-100 px-4.5 py-3 rounded-2xl rounded-tr-xs shadow-sm transition-colors border border-[#3c3d3f]/25">
                               <div className="markdown-body user-message break-words text-sm leading-relaxed">
-                                <Markdown>{message.content}</Markdown>
+                                <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
                               </div>
                             </div>
                             <div className="flex items-center gap-1 text-[9px] text-slate-500 font-mono pr-1 select-none">
@@ -320,6 +321,7 @@ export default function ChatMessageList({
                       <div className="flex-1 space-y-3 min-w-0">
                         <div className="markdown-body break-words select-text">
                           <Markdown
+                            remarkPlugins={[remarkGfm]}
                             components={{
                               code({ node, className, children, ...props }) {
                                 const match = /language-(\w+)/.exec(className || "");

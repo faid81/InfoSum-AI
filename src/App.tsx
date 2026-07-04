@@ -525,37 +525,59 @@ export default function App() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-              {sessions.map((sess) => (
-                <div
-                  key={sess.session_id}
-                  className={`group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-xs transition-all duration-200 cursor-pointer ${
-                    sessionId === sess.session_id
-                      ? "bg-[#2d2f31] text-white font-medium shadow-sm border border-[#3c3d3f]/25"
-                      : "text-[#c4c7c5] hover:text-white hover:bg-[#2d2f31]/40"
-                  }`}
-                  onClick={() => setSessionId(sess.session_id)}
-                >
-                  <div className="flex items-center gap-2.5 overflow-hidden w-full pr-7">
-                    <svg className={`w-3.5 h-3.5 shrink-0 ${sessionId === sess.session_id ? "text-blue-400" : "text-slate-500"}`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span className="truncate" title={sess.title}>
-                      {sess.title}
-                    </span>
-                  </div>
-                  {/* Delete session button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteSession(sess.session_id);
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-[#131314]/70 rounded-md text-slate-400 hover:text-red-400 transition-all cursor-pointer"
-                    title="Hapus Thread"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+              {(() => {
+                const sortedSessions = [...sessions].sort((a, b) => {
+                  const dateA = new Date(a.updated_at || a.created_at).getTime();
+                  const dateB = new Date(b.updated_at || b.created_at).getTime();
+                  return dateB - dateA;
+                });
+
+                return sortedSessions.map((sess, idx) => {
+                  const isLatest = idx === 0;
+                  const isActive = sessionId === sess.session_id;
+
+                  return (
+                    <div
+                      key={sess.session_id}
+                      className={`group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-xs transition-all duration-200 cursor-pointer ${
+                        isActive
+                          ? "bg-[#2d2f31] text-white font-medium shadow-sm border border-[#3c3d3f]/25"
+                          : "text-[#c4c7c5] hover:text-white hover:bg-[#2d2f31]/40"
+                      } ${isLatest ? (isActive ? "border-l-2 border-blue-400 pl-2.5" : "border-l-2 border-blue-500/50 pl-2.5") : ""}`}
+                      onClick={() => setSessionId(sess.session_id)}
+                    >
+                      <div className="flex items-center gap-2.5 overflow-hidden w-full pr-7">
+                        <svg className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-blue-400" : "text-slate-500"}`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span className="truncate flex-1" title={sess.title}>
+                          {sess.title}
+                        </span>
+                        {isLatest && (
+                          <span className={`shrink-0 text-[8px] font-extrabold px-1.5 py-0.5 rounded-xs uppercase tracking-wider ${
+                            isActive 
+                              ? "bg-blue-500/20 text-blue-300 border border-blue-500/30" 
+                              : "bg-[#131314] text-blue-400 border border-[#2d2f31]"
+                          }`}>
+                            Terbaru
+                          </span>
+                        )}
+                      </div>
+                      {/* Delete session button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSession(sess.session_id);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 hover:bg-[#131314]/70 rounded-md text-slate-400 hover:text-red-400 transition-all cursor-pointer"
+                        title="Hapus Thread"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                });
+              })()}
               {sessions.length === 0 && (
                 <div className="text-[11px] text-slate-500 text-center py-6">
                   Belum ada riwayat percakapan.

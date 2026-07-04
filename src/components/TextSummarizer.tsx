@@ -4,6 +4,7 @@ import {
   TrendingDown, AlignLeft, AlertCircle, Clock, Hash, BookOpen, Loader2, UploadCloud, FileUp, File
 } from "lucide-react";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "motion/react";
 import { SummaryFormat, SummaryLength, SummarizeResult } from "../types";
 
@@ -579,7 +580,7 @@ export default function TextSummarizer({ provider, model }: TextSummarizerProps)
 
               {/* Konten Ringkasan */}
               <div className="markdown-body break-words">
-                <Markdown>{result.summary}</Markdown>
+                <Markdown remarkPlugins={[remarkGfm]}>{result.summary}</Markdown>
               </div>
             </div>
           </motion.div>

@@ -110,21 +110,35 @@
 
 .markdown-body table {
   width: 100%;
-  margin-bottom: 0.875rem;
+  margin-top: 1rem;
+  margin-bottom: 1.25rem;
   border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .markdown-body th, 
 .markdown-body td {
-  padding: 0.5rem 0.625rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.75rem 1rem;
+  border: 1px solid #2d2f31;
   text-align: left;
+  font-size: 0.85rem;
 }
 
 .markdown-body th {
-  background-color: #2a2b2d;
+  background-color: #1a1b1c;
   font-weight: 600;
-  color: #ffffff;
+  color: #cbd5e1;
+  border-bottom: 2px solid #3f4144;
+}
+
+.markdown-body tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-body tr:hover {
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 /* Specific styling overrides for user messages vs chatbot replies */
